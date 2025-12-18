@@ -2,13 +2,12 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Yapay Zeka Türkiye Flashcards</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>YZ Türkiye Flashcards</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         .perspective-1000 { perspective: 1000px; }
@@ -17,6 +16,8 @@
         .rotate-y-180 { transform: rotateY(180deg); }
         .card-transition { transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
         
+        body { -webkit-tap-highlight-color: transparent; }
+
         @media print {
             .no-print { display: none !important; }
             body { background-color: white !important; color: black !important; }
@@ -30,13 +31,51 @@
         .dark .border { border-color: #334155; }
     </style>
 </head>
-<body class="bg-slate-50 transition-colors duration-300">
+<body class="bg-slate-50 transition-colors duration-300 font-sans">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useCallback } = React;
+        const { useState, useEffect, useCallback, useMemo } = React;
 
-        const INITIAL_DATA = [
+        // --- ICON COMPONENT (Fixed JSX wrapping and added 'x' icon) ---
+        const Icon = ({ name, className = "w-5 h-5" }) => {
+            const icons = {
+                zap: <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />,
+                timer: <g><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></g>,
+                layers: <g><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></g>,
+                check: <polyline points="20 6 9 17 4 12" />,
+                "check-circle": <g><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></g>,
+                "x-circle": <g><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></g>,
+                volume: <g><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></g>,
+                sun: <g><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></g>,
+                moon: <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />,
+                trash: <g><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></g>,
+                search: <g><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></g>,
+                play: <polygon points="5 3 19 12 5 21 5 3" />,
+                printer: <g><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></g>,
+                award: <g><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></g>,
+                frown: <g><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></g>,
+                arrowRight: <g><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></g>,
+                mousePointer: <g><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><line x1="13" y1="13" x2="19" y2="19"/></g>,
+                x: <g><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></g>
+            };
+            return (
+                <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    className={className}
+                >
+                    {icons[name] || null}
+                </svg>
+            );
+        };
+
+        const DATA_TR = [
             { id: 1, q: "Yanıt Motoru Optimizasyonu (AEO) nedir?", a: "AEO, içeriğin web sitelerine tıklatma amacıyla değil; ChatGPT, Perplexity ve Google AI gibi yapay zeka sistemleri tarafından doğrudan yanıt olarak kullanılacak şekilde optimize edilmesidir." },
             { id: 2, q: "AEO'nun temel amacı nedir?", a: "Yapay zekaların kullanıcı sorularına verdiği yanıtlarda bir marka veya içeriğin referans alınmasını sağlamaktır." },
             { id: 3, q: "AEO stratejisinin ilk adımı nedir?", a: "İçeriğin, kullanıcıların yapay zeka sistemlerine sorduğu gerçek sorular etrafında yapılandırılmasıdır." },
@@ -53,90 +92,133 @@
             { id: 14, q: "SEO ve AEO arasındaki temel fark nedir?", a: "SEO tıklamaya, AEO ise doğrudan yanıt içinde görünürlüğe odaklanır." }
         ];
 
+        const DATA_EN = [
+            { id: 1, q: "What is Answer Engine Optimization (AEO)?", a: "AEO is the process of optimizing content to be used as a direct answer by AI systems like ChatGPT, Perplexity, and Google AI, rather than focusing on website clicks." },
+            { id: 2, q: "What is the primary goal of AEO?", a: "To ensure that a brand or content is referenced in the answers given by AI to user queries." },
+            { id: 3, q: "What is the first step of an AEO strategy?", a: "Structuring content around actual questions that users ask AI systems." },
+            { id: 4, q: "How is content handled in the AEO process?", a: "Content is organized in a way that AI can easily understand, cite, and find reliable." },
+            { id: 5, q: "How does a user search in an AEO scenario?", a: "Instead of a traditional search engine, the user asks a question directly to an AI-powered tool like ChatGPT." },
+            { id: 6, q: "What does Google offer in traditional SEO?", a: "Google usually shows the user 10 website links." },
+            { id: 7, q: "What does AI do in an AEO scenario?", a: "AI synthesizes information from multiple sources to produce a single, clear response." },
+            { id: 8, q: "How is a brand perceived through AEO?", a: "The brand is perceived by AI as a reliable and authoritative source." },
+            { id: 9, q: "What is the goal of the new competitive environment created by AEO?", a: "To compete to be the source that AI references, rather than competing for clicks." },
+            { id: 10, q: "What is the fundamental difference of SEO?", a: "SEO aims to be found when people perform a search." },
+            { id: 11, q: "What is the fundamental difference of AEO?", a: "AEO aims to be cited when an AI provides an answer." },
+            { id: 12, q: "What goal does AEO focus on in marketing?", a: "It focuses on positioning the brand as the expert that AI should cite." },
+            { id: 13, q: "Which systems is AEO optimized for?", a: "It is optimized for AI-powered search and answer engines." },
+            { id: 14, q: "What is the key difference between SEO and AEO?", a: "SEO focuses on clicks, while AEO focuses on visibility within a direct answer." }
+        ];
+
+        const UI_TEXT = {
+            tr: {
+                nav_exam: "SINAV", nav_library: "KÜTÜPHANE", nav_print: "YAZDIR",
+                result_perfect: "Mükemmel!", result_study: "Biraz Daha Çalış!",
+                result_desc: "soruyu {time} sürede tamamladın.",
+                stat_correct: "DOĞRU", stat_wrong: "YANLIŞ", stat_success: "BAŞARI",
+                btn_restart: "YENİDEN BAŞLA", btn_start_exam: "SINAVA BAŞLA",
+                exam_intro: "Hazırsan başlayalım! Toplam 14 soruyu cevaplaman için süre işlemeye başlayacak. Başarılı sayılmak için en az %70 başarı oranı (10 Doğru) yakalamalısın. Süreniz ve skorunuz gerçek zamanlı ölçülecektir.",
+                quiz_question: "SORU", quiz_answer: "CEVAP", quiz_click_hint: "TIKLA VE ÖĞREN",
+                quiz_btn_correct: "DOĞRU", quiz_btn_wrong: "YANLIŞ",
+                search_placeholder: "Kartlar arasında ara...", lib_listen: "Dinle",
+                lib_reset: "İlerlemeyi Sıfırla", print_btn: "Kaydet / Yazdır",
+                footer_brand: "Yapay Zeka Türkiye",
+                confirm_title: "Emin misiniz?", confirm_desc: "İlerlemeniz silinecek.",
+                confirm_yes: "Sıfırla", confirm_no: "Vazgeç"
+            },
+            en: {
+                nav_exam: "EXAM", nav_library: "LIBRARY", nav_print: "PRINT",
+                result_perfect: "Excellent!", result_study: "Study More!",
+                result_desc: "You completed {time} questions in {time}.",
+                stat_correct: "CORRECT", stat_wrong: "WRONG", stat_success: "SUCCESS",
+                btn_restart: "RESTART", btn_start_exam: "START EXAM",
+                exam_intro: "Ready to start? You have 14 questions and the timer is running. You need at least 70% accuracy (10 Correct) to pass. Your time and score will be measured in real-time.",
+                quiz_question: "QUESTION", quiz_answer: "ANSWER", quiz_click_hint: "CLICK TO REVEAL",
+                quiz_btn_correct: "CORRECT", quiz_btn_wrong: "WRONG",
+                search_placeholder: "Search cards...", lib_listen: "Listen",
+                lib_reset: "Reset Progress", print_btn: "Save / Print",
+                footer_brand: "AI Turkey Program",
+                confirm_title: "Are you sure?", confirm_desc: "Progress will be lost.",
+                confirm_yes: "Reset", confirm_no: "Cancel"
+            }
+        };
+
         function App() {
+            const [lang, setLang] = useState('tr');
             const [view, setView] = useState('study'); 
             const [currentIndex, setCurrentIndex] = useState(0);
             const [isFlipped, setIsFlipped] = useState(false);
             const [isDarkMode, setIsDarkMode] = useState(false);
-            const [cards, setCards] = useState(INITIAL_DATA);
             const [isFinished, setIsFinished] = useState(false);
             const [searchTerm, setSearchTerm] = useState('');
-            
             const [correctCount, setCorrectCount] = useState(0);
             const [wrongCount, setWrongCount] = useState(0);
             const [timer, setTimer] = useState(0);
             const [isActive, setIsActive] = useState(false);
+            const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+            const cards = useMemo(() => (lang === 'tr' ? DATA_TR : DATA_EN), [lang]);
+            const ui = UI_TEXT[lang];
 
             const [learnedCards, setLearnedCards] = useState(() => {
                 const saved = localStorage.getItem('aeo_ultimate_learned');
                 return saved ? new Set(JSON.parse(saved)) : new Set();
             });
 
-            useEffect(() => {
-                localStorage.setItem('aeo_ultimate_learned', JSON.stringify([...learnedCards]));
-            }, [learnedCards]);
+            const [wrongCards, setWrongCards] = useState(() => {
+                const saved = localStorage.getItem('aeo_ultimate_wrong');
+                return saved ? new Set(JSON.parse(saved)) : new Set();
+            });
+
+            useEffect(() => { localStorage.setItem('aeo_ultimate_learned', JSON.stringify([...learnedCards])); }, [learnedCards]);
+            useEffect(() => { localStorage.setItem('aeo_ultimate_wrong', JSON.stringify([...wrongCards])); }, [wrongCards]);
 
             useEffect(() => {
                 let interval = null;
                 if (isActive && !isFinished && view === 'study') {
                     interval = setInterval(() => setTimer(t => t + 1), 1000);
-                } else {
-                    clearInterval(interval);
-                }
+                } else { clearInterval(interval); }
                 return () => clearInterval(interval);
             }, [isActive, isFinished, view]);
 
-            useEffect(() => {
-                if (window.lucide) {
-                    window.lucide.createIcons();
-                }
-            }, [view, isFlipped, currentIndex, isDarkMode, isFinished]);
-
             const currentCard = cards[currentIndex];
+            const finishedCount = correctCount + wrongCount;
             const progress = ((currentIndex + 1) / cards.length) * 100;
-            const accuracy = correctCount + wrongCount > 0 
-                ? Math.round((correctCount / (correctCount + wrongCount)) * 100) 
-                : 0;
+            const accuracy = finishedCount > 0 ? Math.round((correctCount / finishedCount) * 100) : 0;
 
             const nextCard = useCallback(() => { 
                 if (currentIndex < cards.length - 1) {
                     setIsFlipped(false); 
                     setCurrentIndex((prev) => prev + 1); 
                 } else {
-                    setIsFinished(true);
-                    setIsActive(false);
-                    if (accuracy > 70) {
-                        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-                    }
+                    setIsFinished(true); setIsActive(false);
+                    if (accuracy >= 70) { confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); }
                 }
             }, [currentIndex, cards.length, accuracy]);
 
             const handleScore = (type) => {
+                const newLearned = new Set(learnedCards);
+                const newWrong = new Set(wrongCards);
                 if (type === 'correct') {
                     setCorrectCount(prev => prev + 1);
-                    const newSet = new Set(learnedCards);
-                    newSet.add(currentCard.id);
-                    setLearnedCards(newSet);
+                    newLearned.add(currentCard.id); newWrong.delete(currentCard.id); 
                 } else {
                     setWrongCount(prev => prev + 1);
+                    newWrong.add(currentCard.id); newLearned.delete(currentCard.id);
                 }
+                setLearnedCards(newLearned); setWrongCards(newWrong);
+                // Move to next card
                 setTimeout(nextCard, 300);
             };
 
             const speak = (text) => {
                 const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'tr-TR';
+                utterance.lang = lang === 'tr' ? 'tr-TR' : 'en-US';
                 window.speechSynthesis.speak(utterance);
             };
 
             const resetQuiz = () => {
-                setCurrentIndex(0);
-                setIsFlipped(false);
-                setIsFinished(false);
-                setCorrectCount(0);
-                setWrongCount(0);
-                setTimer(0);
-                setIsActive(true);
+                setCurrentIndex(0); setIsFlipped(false); setIsFinished(false);
+                setCorrectCount(0); setWrongCount(0); setTimer(0); setIsActive(true);
             };
 
             const formatTime = (s) => {
@@ -152,161 +234,132 @@
 
             return (
                 <div className={`${isDarkMode ? 'dark' : ''} min-h-screen flex flex-col transition-colors duration-300`}>
-                    <div className="max-w-4xl mx-auto p-4 md:p-8 w-full flex-grow">
-                        {/* Header Section - Reverted to spacious layout without slogan */}
-                        <header className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6 no-print bg-white/60 dark:bg-slate-800/60 p-6 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 shadow-sm backdrop-blur-md">
-                            <a 
-                                href="https://www.skool.com/yapay-zeka-turkiye-8840/" 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="flex items-center gap-5 group transition-all hover:opacity-80 active:scale-[0.98]"
-                            >
-                                <div className="shrink-0">
-                                    <img 
-                                        src="https://assets.skool.com/f/81b7b6f8e61546c3952add9a727e64e6/e71571a48aec4565ac13f168a0413390343d444debde44df87ed992c70ee458c-md.jpg" 
-                                        alt="Yapay Zeka Türkiye Logo" 
-                                        className="w-16 h-16 rounded-2xl object-cover shadow-md border-2 border-white dark:border-slate-700"
-                                        onerror="this.src='https://via.placeholder.com/64?text=YZT'"
-                                    />
+                    {showConfirmModal && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 dark:border-slate-700 animate-in zoom-in duration-200">
+                                <h3 className="text-xl font-black text-center text-slate-900 dark:text-white mb-2">{ui.confirm_title}</h3>
+                                <p className="text-slate-500 dark:text-slate-400 text-center text-sm mb-6">{ui.confirm_desc}</p>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-sm">{ui.confirm_no}</button>
+                                    <button onClick={() => { setLearnedCards(new Set()); setWrongCards(new Set()); setShowConfirmModal(false); }} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold text-sm">{ui.confirm_yes}</button>
                                 </div>
-                                <div className="flex flex-col">
-                                    <h1 className="text-3xl font-black text-indigo-750 dark:text-white leading-none tracking-tighter">
-                                        Yapay Zeka Türkiye
-                                    </h1>
-                                </div>
-                            </a>
-                            
-                            <nav className="flex items-center gap-1 bg-white/80 dark:bg-slate-900/80 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-inner">
-                                <button onClick={() => {setView('study'); resetQuiz();}} className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all ${view === 'study' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>SINAV</button>
-                                <button onClick={() => setView('list')} className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all ${view === 'list' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>KÜTÜPHANE</button>
-                                <button onClick={() => setView('print')} className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all ${view === 'print' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>YAZDIR</button>
-                                <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-2"></div>
-                                <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2.5 text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors">
-                                    <i data-lucide={isDarkMode ? "sun" : "moon"} className="w-5 h-5"></i>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex-grow flex flex-col max-w-3xl mx-auto w-full p-4 md:p-6">
+                        <header className="bg-slate-100 dark:bg-slate-800/80 backdrop-blur-md p-4 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-center mb-6 gap-4 no-print shrink-0">
+                            <div className="flex items-center gap-3">
+                                <img src="https://assets.skool.com/f/81b7b6f8e61546c3952add9a727e64e6/e71571a48aec4565ac13f168a0413390343d444debde44df87ed992c70ee458c-md.jpg" className="w-10 h-10 rounded-lg object-cover shadow-sm" />
+                                <h1 className="text-2xl font-black !text-slate-600 dark:!text-white tracking-tighter">YZ Türkiye</h1>
+                            </div>
+                            <nav className="flex items-center gap-1 bg-white/80 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-inner">
+                                <button onClick={() => {setView('study'); setIsActive(false); setIsFinished(false);}} className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${view === 'study' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-700 dark:text-slate-400'}`}>{ui.nav_exam}</button>
+                                <button onClick={() => setView('list')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${view === 'list' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-700 dark:text-slate-400'}`}>{ui.nav_library}</button>
+                                <button onClick={() => setView('print')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${view === 'print' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-700 dark:text-slate-400'}`}>{ui.nav_print}</button>
+                                <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                <button onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')} className="px-2 py-1.5 text-[10px] font-black text-slate-700 dark:text-slate-400 uppercase">{lang}</button>
+                                <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-1.5 text-slate-500 dark:text-slate-400">
+                                    <Icon name={isDarkMode ? "sun" : "moon"} className="w-4 h-4" />
                                 </button>
                             </nav>
                         </header>
 
-                        <main>
+                        <main className="flex-grow flex flex-col no-print">
                             {view === 'study' && (
-                                isFinished ? (
-                                    /* SONUÇ EKRANI */
-                                    <div className="animate-in zoom-in duration-500 max-w-xl mx-auto text-center py-10">
-                                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-700">
-                                            <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 ${accuracy > 70 ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
-                                                <i data-lucide={accuracy > 70 ? "award" : "frown"} className="w-12 h-12"></i>
+                                !isActive && !isFinished ? (
+                                    <div className="flex-grow flex items-center justify-center animate-in fade-in zoom-in duration-500">
+                                        <div className="bg-white dark:bg-slate-800 rounded-[2rem] p-8 shadow-xl border border-slate-100 dark:border-slate-700 w-full text-center">
+                                            <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <Icon name="zap" className="w-6 h-6 text-indigo-600" />
                                             </div>
-                                            <h2 className="text-4xl font-black text-indigo-950 dark:text-white mb-2 tracking-tight">
-                                                {accuracy > 70 ? "Mükemmel!" : "Biraz Daha Çalış!"}
-                                            </h2>
-                                            <p className="text-slate-500 dark:text-slate-400 font-medium mb-10 text-lg">
-                                                {cards.length} soruyu <b>{formatTime(timer)}</b> sürede tamamladın.
-                                            </p>
-                                            
-                                            <div className="grid grid-cols-3 gap-6 mb-10">
-                                                <div className="space-y-1">
-                                                    <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter">DOĞRU</p>
-                                                    <p className="text-3xl font-black text-green-500">{correctCount}</p>
-                                                </div>
-                                                <div className="space-y-1 border-x border-slate-100 dark:border-slate-700">
-                                                    <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter">YANLIŞ</p>
-                                                    <p className="text-3xl font-black text-red-500">{wrongCount}</p>
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter">BAŞARI</p>
-                                                    <p className="text-3xl font-black text-indigo-600 dark:text-indigo-400">%{accuracy}</p>
-                                                </div>
-                                            </div>
-
-                                            <button 
-                                                onClick={resetQuiz}
-                                                className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black shadow-xl shadow-indigo-200 dark:shadow-none transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
-                                            >
-                                                <i data-lucide="play" className="w-5 h-5 fill-current"></i> YENİDEN BAŞLA
+                                            <h2 className="text-2xl font-black text-slate-700 dark:text-white mb-2">{ui.nav_exam}</h2>
+                                            <p className="text-slate-500 dark:text-slate-400 mb-8 text-sm leading-relaxed px-4 italic">{ui.exam_intro}</p>
+                                            <button onClick={resetQuiz} className="w-full py-4 bg-indigo-600 text-white rounded-xl font-black shadow-lg flex items-center justify-center gap-3 active:scale-95 transition-transform">
+                                                {ui.btn_start_exam} <Icon name="arrowRight" className="w-5 h-5" />
                                             </button>
                                         </div>
                                     </div>
+                                ) : isFinished ? (
+                                    <div className="flex-grow flex items-center justify-center animate-in zoom-in duration-500">
+                                        <div className="bg-white dark:bg-slate-800 rounded-[2rem] p-8 shadow-xl border border-slate-100 dark:border-slate-700 w-full text-center">
+                                            <h2 className="text-2xl font-black text-slate-700 dark:text-white mb-1">{accuracy >= 70 ? ui.result_perfect : ui.result_study}</h2>
+                                            <p className="text-slate-500 text-sm mb-6">{ui.result_desc.replace('{time}', formatTime(timer))}</p>
+                                            <div className="grid grid-cols-3 gap-2 mb-8">
+                                                <div className="text-center"><p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{ui.stat_correct}</p><p className="text-xl font-black text-green-500">{correctCount}</p></div>
+                                                <div className="text-center border-x dark:border-slate-700"><p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{ui.stat_wrong}</p><p className="text-xl font-black text-red-500">{wrongCount}</p></div>
+                                                <div className="text-center"><p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{ui.stat_success}</p><p className="text-xl font-black text-indigo-600">%{accuracy}</p></div>
+                                            </div>
+                                            <button onClick={resetQuiz} className="w-full py-4 bg-indigo-600 text-white rounded-xl font-black shadow-lg active:scale-95 transition-transform">{ui.btn_restart}</button>
+                                        </div>
+                                    </div>
                                 ) : (
-                                    /* SINAV EKRANI */
-                                    <div className="space-y-6 no-print animate-in fade-in duration-500">
-                                        <div className="flex flex-wrap justify-center gap-3">
-                                            <div className="px-4 py-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-2">
-                                                <i data-lucide="timer" className="w-3 h-3 text-indigo-500"></i>
-                                                <span className="text-xs font-black font-mono text-slate-700 dark:text-white tracking-tight">{formatTime(timer)}</span>
+                                    <div className="flex-grow flex flex-col justify-center gap-4 animate-in fade-in duration-500">
+                                        {/* Counters Bar: [Current Answered / Total] [Correct] [Wrong] [Timer] */}
+                                        <div className="flex justify-center gap-2">
+                                            <div className="px-3 py-1.5 bg-white dark:bg-slate-800 rounded-lg border dark:border-slate-700 text-[10px] font-black flex items-center gap-1.5 shadow-sm text-slate-700 dark:text-slate-300">
+                                                <Icon name="layers" className="w-3.5 h-3.5 text-indigo-500" />
+                                                {finishedCount} / {cards.length}
                                             </div>
-                                            <div className="px-4 py-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-2">
-                                                <i data-lucide="layers" className="w-3 h-3 text-indigo-500"></i>
-                                                <span className="text-xs font-black text-slate-700 dark:text-white tracking-tight">{currentIndex + 1} / {cards.length}</span>
+                                            <div className="px-3 py-1.5 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-100 dark:border-green-900/30 text-[10px] font-black flex items-center gap-1.5 shadow-sm text-green-600">
+                                                <Icon name="check" className="w-3.5 h-3.5" />
+                                                {correctCount}
                                             </div>
-                                            <div className="px-4 py-2 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center gap-2">
-                                                <i data-lucide="check" className="w-3 h-3 text-green-600"></i>
-                                                <span className="text-xs font-black text-green-600 tracking-tight">{correctCount}</span>
+                                            <div className="px-3 py-1.5 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/30 text-[10px] font-black flex items-center gap-1.5 shadow-sm text-red-600">
+                                                <Icon name="x" className="w-3.5 h-3.5" />
+                                                {wrongCount}
+                                            </div>
+                                            <div className="px-3 py-1.5 bg-white dark:bg-slate-800 rounded-lg border dark:border-slate-700 text-[10px] font-black flex items-center gap-1.5 shadow-sm text-slate-700 dark:text-slate-300 ml-2">
+                                                <Icon name="timer" className="w-3.5 h-3.5 text-indigo-500" />
+                                                {formatTime(timer)}
                                             </div>
                                         </div>
 
-                                        <div className="relative h-[22rem] w-full perspective-1000" onClick={() => { if(!isFlipped) { setIsFlipped(true); setIsActive(true); } }}>
+                                        <div className="relative h-72 md:h-80 w-full perspective-1000" onClick={() => setIsFlipped(!isFlipped)}>
                                             <div className={`relative w-full h-full card-transition transform-style-3d cursor-pointer ${isFlipped ? 'rotate-y-180' : ''}`}>
-                                                {/* Ön Yüz */}
-                                                <div className="absolute inset-0 backface-hidden bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-xl border-2 border-slate-100 dark:border-slate-700 p-10 flex flex-col items-center justify-center text-center">
-                                                    <span className="absolute top-8 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em]">SORU</span>
-                                                    <p className="text-2xl md:text-3xl font-black leading-tight text-indigo-950 dark:text-white px-2">{currentCard.q}</p>
-                                                    <div className="absolute bottom-8 flex items-center gap-4">
-                                                        <button onClick={(e) => { e.stopPropagation(); speak(currentCard.q); }} className="p-3 rounded-full bg-slate-50 dark:bg-slate-700 text-slate-500 hover:text-indigo-600 transition-colors">
-                                                            <i data-lucide="volume-2" className="w-5 h-5"></i>
-                                                        </button>
-                                                        <div className="text-[10px] font-bold text-slate-400 dark:text-slate-600 flex items-center gap-1">
-                                                            <i data-lucide="mouse-pointer-2" className="w-3 h-3"></i> TIKLA VE ÖĞREN
-                                                        </div>
-                                                    </div>
+                                                <div className="absolute inset-0 backface-hidden bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-lg border p-6 flex flex-col items-center justify-center text-center">
+                                                    <span className="absolute top-4 text-[8px] font-black text-slate-400 tracking-[0.3em] uppercase">{ui.quiz_question} {currentIndex + 1}</span>
+                                                    <p className="text-xl md:text-2xl font-black text-indigo-950 dark:text-white leading-tight px-4">{currentCard.q}</p>
+                                                    <div className="absolute bottom-4 text-[8px] font-bold text-slate-400 uppercase flex items-center gap-1.5"><Icon name="mousePointer" className="w-2.5 h-2.5" /> {ui.quiz_click_hint}</div>
                                                 </div>
-                                                
-                                                {/* Arka Yüz */}
-                                                <div className="absolute inset-0 backface-hidden bg-indigo-600 rounded-[2.5rem] shadow-xl p-10 flex flex-col items-center justify-center text-center rotate-y-180 text-white">
-                                                    <span className="absolute top-8 text-[10px] font-black text-indigo-300 uppercase tracking-[0.3em]">CEVAP</span>
-                                                    <p className="text-lg md:text-xl font-bold leading-relaxed mb-10">{currentCard.a}</p>
-                                                    
-                                                    <div className="flex gap-4" onClick={(e) => e.stopPropagation()}>
-                                                        <button onClick={() => handleScore('correct')} className="bg-white text-indigo-600 px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-green-50 transition-all shadow-lg active:scale-95">
-                                                            <i data-lucide="check-circle-2" className="w-5 h-5"></i> DOĞRU
-                                                        </button>
-                                                        <button onClick={() => handleScore('wrong')} className="bg-indigo-900 text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-red-500 transition-all border border-indigo-400 shadow-md active:scale-95">
-                                                            <i data-lucide="x-circle" className="w-5 h-5"></i> YANLIŞ
-                                                        </button>
+                                                <div className="absolute inset-0 backface-hidden bg-indigo-600 rounded-[1.5rem] shadow-lg p-6 flex flex-col items-center justify-center text-center rotate-y-180 text-white">
+                                                    <span className="absolute top-4 text-[8px] font-black text-indigo-300 tracking-[0.3em] uppercase">{ui.quiz_answer}</span>
+                                                    <p className="text-base md:text-lg font-bold leading-relaxed mb-6">{currentCard.a}</p>
+                                                    <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                                                        <button onClick={() => handleScore('correct')} className="bg-white text-indigo-600 px-6 py-2.5 rounded-lg font-black text-[10px] flex items-center gap-1.5 shadow-md hover:bg-green-50 transition-colors"><Icon name="check" className="w-3.5 h-3.5" /> {ui.quiz_btn_correct}</button>
+                                                        <button onClick={() => handleScore('wrong')} className="bg-red-600 text-white px-6 py-2.5 rounded-lg font-black text-[10px] flex items-center gap-1.5 shadow-md hover:bg-red-700 transition-colors border border-red-500 active:scale-95 transition-transform"><Icon name="x-circle" className="w-3.5 h-3.5" /> {ui.quiz_btn_wrong}</button>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-
-                                        <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                                            <div className="bg-indigo-600 h-full transition-all duration-500" style={{width: `${progress}%`}}></div>
-                                        </div>
+                                        <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden shadow-inner"><div className="bg-indigo-600 h-full transition-all duration-300" style={{width: `${progress}%`}}></div></div>
                                     </div>
                                 )
                             )}
 
                             {view === 'list' && (
-                                <div className="space-y-6 animate-in slide-in-from-right duration-500">
-                                    <div className="relative">
-                                        <i data-lucide="search" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Kartlar arasında ara..." 
-                                            className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 ring-indigo-500 outline-none dark:text-white shadow-sm"
-                                            value={searchTerm}
-                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                        />
+                                <div className="space-y-4 animate-in slide-in-from-right duration-300">
+                                    <div className="flex gap-2">
+                                        <div className="relative flex-grow">
+                                            <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
+                                            <input type="text" placeholder={ui.search_placeholder} className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-xs outline-none shadow-sm dark:text-white" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                                        </div>
+                                        <button onClick={() => setShowConfirmModal(true)} className="px-4 py-2.5 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 rounded-xl text-[10px] font-black shrink-0 shadow-sm border border-red-100 dark:border-red-900/30 hover:bg-red-100 transition-colors">
+                                            {ui.lib_reset}
+                                        </button>
                                     </div>
-                                    <div className="grid gap-4">
+                                    <div className="grid gap-3">
                                         {filteredCards.map(card => (
-                                            <div key={card.id} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm group">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <h3 className="font-black text-indigo-950 dark:text-white pr-8">{card.q}</h3>
-                                                    {learnedCards.has(card.id) && <i data-lucide="check-circle" className="text-green-500 w-5 h-5 shrink-0"></i>}
+                                            <div key={card.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm group">
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <h3 className="font-black text-indigo-950 dark:text-white text-xs leading-tight pr-6">{card.q}</h3>
+                                                    <div className="flex gap-1.5 shrink-0">
+                                                        {learnedCards.has(card.id) && <div className="text-green-500 w-4 h-4"><Icon name="check-circle" className="w-4 h-4" /></div>}
+                                                        {wrongCards.has(card.id) && <div className="text-red-500 w-4 h-4"><Icon name="x-circle" className="w-4 h-4" /></div>}
+                                                    </div>
                                                 </div>
-                                                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed italic">{card.a}</p>
-                                                <button onClick={() => speak(card.a)} className="mt-4 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <i data-lucide="play-circle" className="w-3 h-3"></i> Dinle
-                                                </button>
+                                                <p className="text-[10px] text-slate-600 dark:text-slate-400 italic leading-relaxed">{card.a}</p>
+                                                <button onClick={() => speak(card.a)} className="mt-2 text-[8px] font-bold text-indigo-600 dark:text-indigo-400 uppercase flex items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity"><Icon name="play" className="w-2.5 h-2.5" /> {ui.lib_listen}</button>
                                             </div>
                                         ))}
                                     </div>
@@ -314,59 +367,33 @@
                             )}
 
                             {view === 'print' && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-20 animate-in slide-in-from-bottom-4">
-                                    {cards.map((card) => (
-                                        <div key={card.id} className="print-card bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-sm">
-                                            <div className="p-6 border-b-2 border-dashed border-slate-100 dark:border-slate-700 min-h-[100px] flex flex-col justify-center">
-                                                <span className="text-[10px] font-black text-indigo-500 mb-2 tracking-widest uppercase">SORU</span>
-                                                <p className="text-sm font-bold text-indigo-950 dark:text-white leading-tight">{card.q}</p>
-                                            </div>
-                                            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 min-h-[100px] flex flex-col justify-center">
-                                                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 mb-2 tracking-widest uppercase">CEVAP</span>
-                                                <p className="text-xs text-slate-700 dark:text-slate-300 italic leading-relaxed">{card.a}</p>
-                                            </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-8">
+                                    {cards.map(card => (
+                                        <div key={card.id} className="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl p-4 shadow-sm">
+                                            <p className="text-[8px] font-black text-indigo-500 mb-1 uppercase tracking-widest">{ui.quiz_question}</p>
+                                            <p className="text-xs font-bold text-indigo-950 dark:text-white mb-2">{card.q}</p>
+                                            <p className="text-[8px] font-black text-slate-400 mb-1 uppercase tracking-widest">{ui.quiz_answer}</p>
+                                            <p className="text-[10px] text-slate-700 dark:text-slate-300 italic leading-relaxed">{card.a}</p>
                                         </div>
                                     ))}
-                                    <div className="md:col-span-2 text-center no-print mt-10">
-                                        <button onClick={() => window.print()} className="bg-indigo-600 text-white px-10 py-5 rounded-[2rem] font-black hover:bg-indigo-700 shadow-xl shadow-indigo-200 dark:shadow-none transition-all flex items-center gap-3 mx-auto uppercase tracking-widest text-sm">
-                                            <i data-lucide="printer" className="w-5 h-5"></i> PDF Olarak Kaydet / Yazdır
-                                        </button>
+                                    <div className="md:col-span-2 flex justify-center mt-6">
+                                        <button onClick={() => window.print()} className="bg-indigo-600 text-white px-8 py-3.5 rounded-2xl font-black text-[10px] flex items-center gap-2.5 shadow-lg active:scale-95 transition-transform"><Icon name="printer" className="w-4 h-4" /> {ui.print_btn}</button>
                                     </div>
                                 </div>
                             )}
                         </main>
+
+                        <footer className="mt-8 py-6 border-t dark:border-slate-700 no-print shrink-0 text-center">
+                            <div className="flex flex-col md:flex-row justify-center items-center gap-4 md:gap-12 text-[10px] font-black text-slate-700 dark:text-slate-500 uppercase tracking-[0.15em]">
+                                <a href="https://www.skool.com/yapay-zeka-turkiye-8840/" target="_blank" className="hover:text-indigo-600 transition-colors">Yapay Zeka Türkiye</a>
+                                <a href="https://serhansingil.com" target="_blank" className="hover:text-indigo-600 transition-colors">Serhan SİNGİL</a>
+                                <a href="https://benimyapayzeka.com" target="_blank" className="hover:text-indigo-600 transition-colors">Benim Yapay Zeka</a>
+                            </div>
+                            <div className="mt-4">
+                                <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">&copy; 2025 {ui.footer_brand}</p>
+                            </div>
+                        </footer>
                     </div>
-
-                    {/* Footer Connections */}
-                    <footer className="w-full py-12 px-4 mt-auto bg-white/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 no-print transition-colors">
-                        <div className="max-w-4xl mx-auto">
-                            <div className="flex flex-col md:flex-row justify-center items-center gap-8 md:gap-12 text-center">
-                                <a href="https://www.skool.com/yapay-zeka-turkiye-8840/" target="_blank" rel="noopener noreferrer" className="group flex flex-col items-center gap-2">
-                                    <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform shadow-sm">
-                                        <i data-lucide="users" className="w-6 h-6"></i>
-                                    </div>
-                                    <span className="text-sm font-black text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 transition-colors tracking-tight">Yapay Zeka Türkiye</span>
-                                </a>
-
-                                <a href="https://serhansingil.com" target="_blank" rel="noopener noreferrer" className="group flex flex-col items-center gap-2">
-                                    <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400 group-hover:scale-110 transition-transform shadow-sm">
-                                        <i data-lucide="user" className="w-6 h-6"></i>
-                                    </div>
-                                    <span className="text-sm font-black text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 transition-colors tracking-tight">Serhan SİNGİL</span>
-                                </a>
-
-                                <a href="https://benimyapayzeka.com" target="_blank" rel="noopener noreferrer" className="group flex flex-col items-center gap-2">
-                                    <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-2xl text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform shadow-sm">
-                                        <i data-lucide="sparkles" className="w-6 h-6"></i>
-                                    </div>
-                                    <span className="text-sm font-black text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 transition-colors tracking-tight">Benim Yapay Zeka</span>
-                                </a>
-                            </div>
-                            <div className="mt-8 text-center border-t border-slate-200/50 dark:border-slate-700/50 pt-8">
-                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">&copy; 2025 Yapay Zeka Türkiye Programı</p>
-                            </div>
-                        </div>
-                    </footer>
                 </div>
             );
         }
